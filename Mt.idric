@@ -1,5 +1,6 @@
 module Mt
 
+import public PaymentIdentifiers
 import public Mt.Types
 import public Mt.Schema
 import public Mt.Fin
