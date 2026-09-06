@@ -1,5 +1,7 @@
 module Mt.Types
 
+import PaymentIdentifiers
+
 %default total
 
 public export
@@ -25,14 +27,20 @@ record ValueDateCurrencyAmount where
   amount_text : String
 
 public export
+record BicParty where
+  constructor MkBicParty
+  account : Maybe Account
+  bic : Bic
+
+public export
 data OrderingCustomer
-  = OrderingCustomerA String
+  = OrderingCustomerA BicParty
   | OrderingCustomerF String
   | OrderingCustomerK String
 
 public export
 data BeneficiaryCustomer
-  = BeneficiaryCustomerA String
+  = BeneficiaryCustomerA BicParty
   | BeneficiaryCustomerF String
   | BeneficiaryCustomerNoOption String
 
@@ -53,13 +61,19 @@ value_date_currency_amount_text : ValueDateCurrencyAmount → String
 value_date_currency_amount_text value =
   value.value_date ++ value.currency_code ++ value.amount_text
 
+bic_party_text : BicParty → String
+bic_party_text party =
+  case party.account of
+    Nothing => bic_text party.bic
+    Just account => "/" ++ account_text account ++ "\r\n" ++ bic_text party.bic
+
 ordering_customer_field : OrderingCustomer → MtField
-ordering_customer_field (OrderingCustomerA value) = MkMtField "50A" value
+ordering_customer_field (OrderingCustomerA party) = MkMtField "50A" (bic_party_text party)
 ordering_customer_field (OrderingCustomerF value) = MkMtField "50F" value
 ordering_customer_field (OrderingCustomerK value) = MkMtField "50K" value
 
 beneficiary_customer_field : BeneficiaryCustomer → MtField
-beneficiary_customer_field (BeneficiaryCustomerA value) = MkMtField "59A" value
+beneficiary_customer_field (BeneficiaryCustomerA party) = MkMtField "59A" (bic_party_text party)
 beneficiary_customer_field (BeneficiaryCustomerF value) = MkMtField "59F" value
 beneficiary_customer_field (BeneficiaryCustomerNoOption value) = MkMtField "59" value
 
