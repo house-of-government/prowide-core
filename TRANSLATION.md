@@ -23,9 +23,9 @@ Do not hand-translate thousands of generated Java classes. Treat checked-in gene
 
 ## Shared identifier boundary
 
-`PaymentIdentifiers.idric` is the common domain boundary consumed by this MT slice and the companion ISO 20022 draft. It is intentionally one small Edriç module, not a translation of Prowide's Java classes or JAXB graph.
+`PaymentIdentifiers.idric` is the common domain boundary consumed by this MT slice and the companion ISO 20022 draft. It has its own `prowide_identifiers_edric` package (`prowide-identifiers.ipkg`). `prowide_core_edric` depends on that package rather than owning the identifier module, and the MX package depends on the same identifier package directly. MX therefore does not acquire a dependency on MT message types, FIN parsing, or the rest of Prowide Core merely to use BIC/account values.
 
-The boundary currently provides:
+The boundary is intentionally one small Edriç module, not a translation of Prowide's Java classes or JAXB graph. It currently provides:
 
 - `Bic`, preserving the exact 8- or 11-character text.
 - `parse_bic`, implementing the ISO 9362 / ISO 20022 Dec-2014 structural shape: four uppercase alphanumeric party-prefix characters, two uppercase country-code letters, two uppercase alphanumeric suffix characters, and an optional three-character uppercase alphanumeric branch.
@@ -57,6 +57,8 @@ Run:
 ```sh
 make test
 ```
+
+The Makefile builds and installs `prowide_identifiers_edric` before compiling the MT package, so the package boundary is exercised rather than satisfied by same-package visibility.
 
 ## Next generated slices
 
