@@ -1,0 +1,121 @@
+module Mt.Schema
+
+import Mt.Types
+
+%default total
+
+public export
+data Requirement = Mandatory | Optional
+
+public export
+data Repetition = Single | Repeated
+
+public export
+record MtFieldRule where
+  constructor MkMtFieldRule
+  alternatives : List String
+  requirement : Requirement
+  repetition : Repetition
+
+public export
+record MtMessageSchema where
+  constructor MkMtMessageSchema
+  message_type : String
+  field_rules : List MtFieldRule
+
+rule : List String → Requirement → Repetition → MtFieldRule
+rule alternatives requirement repetition =
+  MkMtFieldRule alternatives requirement repetition
+
+public export
+mt103_schema : MtMessageSchema
+mt103_schema =
+  MkMtMessageSchema "103"
+    [ rule ["20"] Mandatory Single
+    , rule ["13C"] Optional Repeated
+    , rule ["23B"] Mandatory Single
+    , rule ["23E"] Optional Repeated
+    , rule ["26T"] Optional Single
+    , rule ["32A"] Mandatory Single
+    , rule ["33B"] Optional Single
+    , rule ["36"] Optional Single
+    , rule ["50A", "50F", "50K"] Mandatory Single
+    , rule ["51A"] Optional Single
+    , rule ["52A", "52D"] Optional Single
+    , rule ["53A", "53B", "53D"] Optional Single
+    , rule ["54A", "54B", "54D"] Optional Single
+    , rule ["55A", "55B", "55D"] Optional Single
+    , rule ["56A", "56C", "56D"] Optional Single
+    , rule ["57A", "57B", "57C", "57D"] Optional Single
+    , rule ["59A", "59F", "59"] Mandatory Single
+    , rule ["70"] Optional Single
+    , rule ["71A"] Mandatory Single
+    , rule ["71F"] Optional Repeated
+    , rule ["71G"] Optional Single
+    , rule ["72"] Optional Single
+    , rule ["77B"] Optional Single
+    ]
+
+tag_in : String → List String → Bool
+tag_in _ [] = False
+tag_in tag (candidate :: remaining) =
+  tag == candidate || tag_in tag remaining
+
+occurrences : List String → List MtField → ℕ
+occurrences _ [] = 0
+occurrences alternatives (field :: remaining) =
+  let rest = occurrences alternatives remaining in
+    if tag_in field.field_tag alternatives then 1 + rest else rest
+
+alternative_text : List String → String
+alternative_text [] = ""
+alternative_text [tag] = tag
+alternative_text (tag :: remaining) = tag ++ "/" ++ alternative_text remaining
+
+validate_rule : MtFieldRule → List MtField → Either String ()
+validate_rule field_rule fields =
+  let count = occurrences field_rule.alternatives fields
+      name = alternative_text field_rule.alternatives
+  in case field_rule.requirement of
+    Mandatory =>
+      if count == 0
+        then Left ("MT field group " ++ name ++ " is mandatory")
+        else validate_repetition field_rule.repetition name count
+    Optional => validate_repetition field_rule.repetition name count
+  where
+    validate_repetition : Repetition → String → ℕ → Either String ()
+    validate_repetition Repeated _ _ = Right ()
+    validate_repetition Single name count =
+      if count > 1
+        then Left ("MT field group " ++ name ++ " occurs more than once")
+        else Right ()
+
+validate_rules : List MtFieldRule → List MtField → Either String ()
+validate_rules [] _ = Right ()
+validate_rules (field_rule :: remaining) fields =
+  case validate_rule field_rule fields of
+    Left problem => Left problem
+    Right () => validate_rules remaining fields
+
+tag_known_in_rules : String → List MtFieldRule → Bool
+tag_known_in_rules _ [] = False
+tag_known_in_rules tag (field_rule :: remaining) =
+  tag_in tag field_rule.alternatives || tag_known_in_rules tag remaining
+
+validate_known_fields : List MtFieldRule → List MtField → Either String ()
+validate_known_fields _ [] = Right ()
+validate_known_fields rules (field :: remaining) =
+  if tag_known_in_rules field.field_tag rules
+    then validate_known_fields rules remaining
+    else Left ("field :" ++ field.field_tag ++ ": is not in this MT message schema")
+
+public export
+validate_mt_fields : MtMessageSchema → List MtField → Either String ()
+validate_mt_fields schema fields =
+  case validate_known_fields schema.field_rules fields of
+    Left problem => Left problem
+    Right () => validate_rules schema.field_rules fields
+
+public export
+validate_mt103_fields : List MtField → Either String ()
+validate_mt103_fields = validate_mt_fields mt103_schema
