@@ -1,5 +1,6 @@
 module Mt.Typed
 
+import Mt.Schema
 import Mt.Types
 
 %default total
@@ -15,49 +16,90 @@ mt103_header header =
   starts_with (unpack "I103") (unpack header) ||
   starts_with (unpack "O103") (unpack header)
 
-find_field : String → List MtField → Maybe String
-find_field _ [] = Nothing
-find_field tag (field :: remaining) =
-  if field.field_tag == tag
-    then Just field.field_value
-    else find_field tag remaining
+tag_in : String → List String → Bool
+tag_in _ [] = False
+tag_in tag (candidate :: remaining) =
+  tag == candidate || tag_in tag remaining
 
-required_field : String → List MtField → Either String String
-required_field tag fields =
-  case find_field tag fields of
-    Nothing => Left ("MT103 is missing required field :" ++ tag ++ ":")
-    Just value => Right value
+find_field : List String → List MtField → Maybe MtField
+find_field _ [] = Nothing
+find_field tags (field :: remaining) =
+  if tag_in field.field_tag tags
+    then Just field
+    else find_field tags remaining
+
+required_field : String → String → List MtField → Either String MtField
+required_field label tag fields =
+  case find_field [tag] fields of
+    Nothing => Left (label ++ " is missing required field :" ++ tag ++ ":")
+    Just field => Right field
+
+required_choice : String → List String → List MtField → Either String MtField
+required_choice label alternatives fields =
+  case find_field alternatives fields of
+    Nothing => Left (label ++ " is missing a required field alternative")
+    Just field => Right field
+
+take_chars : ℕ → List Char → Maybe (List Char, List Char)
+take_chars 0 input = Just ([], input)
+take_chars _ [] = Nothing
+take_chars (S remaining_count) (character :: remaining) =
+  case take_chars remaining_count remaining of
+    Nothing => Nothing
+    Just (taken, rest) => Just (character :: taken, rest)
+
+parse_32a : String → Either String ValueDateCurrencyAmount
+parse_32a value =
+  case take_chars 6 (unpack value) of
+    Nothing => Left "field :32A: is shorter than its six-character date"
+    Just (date, after_date) =>
+      case take_chars 3 after_date of
+        Nothing => Left "field :32A: is missing its three-character currency"
+        Just (currency, amount) =>
+          case amount of
+            [] => Left "field :32A: is missing its amount"
+            _ => Right (MkValueDateCurrencyAmount (pack date) (pack currency) (pack amount))
+
+ordering_customer_from_field : MtField → Either String OrderingCustomer
+ordering_customer_from_field field =
+  case field.field_tag of
+    "50A" => Right (OrderingCustomerA field.field_value)
+    "50F" => Right (OrderingCustomerF field.field_value)
+    "50K" => Right (OrderingCustomerK field.field_value)
+    _ => Left "invalid ordering-customer field in MT103"
+
+beneficiary_customer_from_field : MtField → Either String BeneficiaryCustomer
+beneficiary_customer_from_field field =
+  case field.field_tag of
+    "59A" => Right (BeneficiaryCustomerA field.field_value)
+    "59F" => Right (BeneficiaryCustomerF field.field_value)
+    "59" => Right (BeneficiaryCustomerNoOption field.field_value)
+    _ => Left "invalid beneficiary-customer field in MT103"
 
 public export
 mt103_from_envelope : SwiftEnvelope → Either String MT103
 mt103_from_envelope message =
   if not (mt103_header message.envelope_application_header)
     then Left "FIN block 2 does not identify an MT103"
-    else case required_field "20" message.envelope_text of
+    else case validate_mt103_fields message.envelope_text of
       Left problem => Left problem
-      Right reference =>
-        case required_field "23B" message.envelope_text of
-          Left problem => Left problem
-          Right operation_code =>
-            case required_field "32A" message.envelope_text of
-              Left problem => Left problem
-              Right value_date_amount =>
-                case required_field "50K" message.envelope_text of
-                  Left problem => Left problem
-                  Right ordering_customer =>
-                    case required_field "59" message.envelope_text of
-                      Left problem => Left problem
-                      Right beneficiary =>
-                        case required_field "71A" message.envelope_text of
-                          Left problem => Left problem
-                          Right charges =>
-                            Right
-                              (MkMT103
-                                message.envelope_basic_header
-                                message.envelope_application_header
-                                reference
-                                operation_code
-                                value_date_amount
-                                ordering_customer
-                                beneficiary
-                                charges)
+      Right () => do
+        reference_field <- required_field "MT103" "20" message.envelope_text
+        operation_field <- required_field "MT103" "23B" message.envelope_text
+        value_date_amount_field <- required_field "MT103" "32A" message.envelope_text
+        value_date_amount <- parse_32a value_date_amount_field.field_value
+        ordering_field <- required_choice "MT103" ["50A", "50F", "50K"] message.envelope_text
+        ordering <- ordering_customer_from_field ordering_field
+        beneficiary_field <- required_choice "MT103" ["59A", "59F", "59"] message.envelope_text
+        beneficiary <- beneficiary_customer_from_field beneficiary_field
+        charges_field <- required_field "MT103" "71A" message.envelope_text
+        pure
+          (MkMT103
+            message.envelope_basic_header
+            message.envelope_application_header
+            reference_field.field_value
+            operation_field.field_value
+            value_date_amount
+            ordering
+            beneficiary
+            charges_field.field_value)
