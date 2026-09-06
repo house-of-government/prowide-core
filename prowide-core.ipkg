@@ -1,0 +1,6 @@
+package prowide_core_edric
+
+version = 0.1.0
+sourcedir = "."
+
+modules = Mt, Mt.Types, Mt.Fin
