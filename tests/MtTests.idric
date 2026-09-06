@@ -76,12 +76,33 @@ multiline_round_trip =
         ] => render_fin parsed == multiline_fin
         _ => False
 
+typed_mt103_round_trip : Bool
+typed_mt103_round_trip =
+  case parse_fin expected_fin of
+    Left _ => False
+    Right envelope =>
+      case mt103_from_envelope envelope of
+        Left _ => False
+        Right typed => render_mt103 typed == expected_fin
+
+wrong_message_type_rejected : Bool
+wrong_message_type_rejected =
+  case mt103_from_envelope (MkSwiftEnvelope "F01BANKBEBBAXXX0000000000" "I202BANKDEFFXXXXN" Nothing [] Nothing) of
+    Left _ => True
+    Right _ => False
+
 check : String → Bool → IO ()
 check name True = putStrLn ("ok   " ++ name)
 check name False = putStrLn ("FAIL " ++ name)
 
 all_pass : Bool
-all_pass = mt103_writer && field_order && fin_round_trip && multiline_round_trip
+all_pass =
+  mt103_writer &&
+  field_order &&
+  fin_round_trip &&
+  multiline_round_trip &&
+  typed_mt103_round_trip &&
+  wrong_message_type_rejected
 
 main : IO ()
 main = do
@@ -89,4 +110,6 @@ main = do
   check "MT103 fields preserve SWIFT order" field_order
   check "FIN parses and writes without change" fin_round_trip
   check "FIN preserves optional blocks and multiline fields" multiline_round_trip
+  check "generic FIN decodes to typed MT103" typed_mt103_round_trip
+  check "typed MT103 decoder rejects another message type" wrong_message_type_rejected
   if all_pass then pure () else exitFailure
