@@ -18,12 +18,12 @@ take_balanced depth ('{' :: rest) =
   case take_balanced (depth + 1) rest of
     Left problem => Left problem
     Right (inside, remaining) => Right ('{' :: inside, remaining)
-take_balanced depth ('}' :: rest) =
-  if depth == 1
-    then Right ([], rest)
-    else case take_balanced (depth - 1) rest of
-      Left problem => Left problem
-      Right (inside, remaining) => Right ('}' :: inside, remaining)
+take_balanced Z ('}' :: rest) = Left "unexpected FIN block terminator"
+take_balanced (S Z) ('}' :: rest) = Right ([], rest)
+take_balanced (S (S depth)) ('}' :: rest) =
+  case take_balanced (S depth) rest of
+    Left problem => Left problem
+    Right (inside, remaining) => Right ('}' :: inside, remaining)
 take_balanced depth (character :: rest) =
   case take_balanced depth rest of
     Left problem => Left problem
