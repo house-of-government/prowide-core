@@ -1,6 +1,7 @@
 module Mt
 
 import public Mt.Types
+import public Mt.Schema
 import public Mt.Fin
 import public Mt.Parse
 import public Mt.Typed
