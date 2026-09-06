@@ -1,0 +1,56 @@
+module Main
+
+import Mt
+import System
+
+%default total
+
+sample_mt103 : MT103
+sample_mt103 =
+  MkMT103
+    "F01BANKBEBBAXXX0000000000"
+    "I103BANKDEFFXXXXN"
+    "REFERENCE123"
+    "CRED"
+    "260906USD1234,56"
+    "/12345678 JOHN CUSTOMER"
+    "/87654321 JANE BENEFICIARY"
+    "SHA"
+
+expected_fin : String
+expected_fin =
+  "{1:F01BANKBEBBAXXX0000000000}" ++
+  "{2:I103BANKDEFFXXXXN}" ++
+  "{4:\r\n" ++
+  ":20:REFERENCE123\r\n" ++
+  ":23B:CRED\r\n" ++
+  ":32A:260906USD1234,56\r\n" ++
+  ":50K:/12345678 JOHN CUSTOMER\r\n" ++
+  ":59:/87654321 JANE BENEFICIARY\r\n" ++
+  ":71A:SHA\r\n" ++
+  "-}"
+
+mt103_writer : Bool
+mt103_writer = render_mt103 sample_mt103 == expected_fin
+
+field_order : Bool
+field_order =
+  case (mt103_envelope sample_mt103).envelope_text of
+    [ MkMtField "20" _
+    , MkMtField "23B" _
+    , MkMtField "32A" _
+    , MkMtField "50K" _
+    , MkMtField "59" _
+    , MkMtField "71A" _
+    ] => True
+    _ => False
+
+check : String → Bool → IO ()
+check name True = putStrLn ("ok   " ++ name)
+check name False = putStrLn ("FAIL " ++ name)
+
+main : IO ()
+main = do
+  check "MT103 renders canonical FIN block order" mt103_writer
+  check "MT103 fields preserve SWIFT order" field_order
+  if mt103_writer && field_order then pure () else exitFailure
