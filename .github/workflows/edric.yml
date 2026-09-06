@@ -18,21 +18,16 @@ jobs:
           ref: Idriç
           path: .tools/Idric
 
-      - name: Install compiler bootstrap dependency
+      - name: Build present Idriç compiler through its public entrypoint
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends chezscheme
-
-      - name: Build present Idriç compiler
-        run: |
-          make -C "$GITHUB_WORKSPACE/.tools/Idric" bootstrap SCHEME=scheme
-          "$GITHUB_WORKSPACE/.tools/Idric/build/exec/idris2" --version
+          "$GITHUB_WORKSPACE/.tools/Idric/edric" bootstrap
+          "$GITHUB_WORKSPACE/.tools/Idric/idris2" --version
 
       - name: Build and run MT acceptance tests
         env:
           IDRIS2_PREFIX: ${{ github.workspace }}/.tools/Idric/bootstrap-build
         run: |
-          make test IDRIC="$GITHUB_WORKSPACE/.tools/Idric/build/exec/idris2"
+          make test IDRIC="$GITHUB_WORKSPACE/.tools/Idric/idris2"
 
       - name: Verify ai-ci contract from present main
         uses: isomorphisms/ai-ci@main
