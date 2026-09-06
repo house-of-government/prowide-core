@@ -1,5 +1,6 @@
 module Mt.Typed
 
+import PaymentIdentifiers
 import Mt.Schema
 import Mt.Types
 
@@ -60,10 +61,34 @@ parse_32a value =
             [] => Left "field :32A: is missing its amount"
             _ => Right (MkValueDateCurrencyAmount (pack date) (pack currency) (pack amount))
 
+split_first_crlf : List Char → Maybe (List Char, List Char)
+split_first_crlf [] = Nothing
+split_first_crlf ('\r' :: '\n' :: remaining) = Just ([], remaining)
+split_first_crlf (character :: remaining) =
+  case split_first_crlf remaining of
+    Nothing => Nothing
+    Just (before, after) => Just (character :: before, after)
+
+parse_bic_party : String → Either String BicParty
+parse_bic_party value =
+  case unpack value of
+    '/' :: account_and_bic =>
+      case split_first_crlf account_and_bic of
+        Nothing => Left "FIN option A account must be followed by a BIC line"
+        Just (account_characters, bic_characters) => do
+          account <- parse_account (pack account_characters)
+          bic <- parse_fin_bic (pack bic_characters)
+          pure (MkBicParty (Just account) bic)
+    _ => do
+      bic <- parse_fin_bic value
+      pure (MkBicParty Nothing bic)
+
 ordering_customer_from_field : MtField → Either String OrderingCustomer
 ordering_customer_from_field field =
   case field.field_tag of
-    "50A" => Right (OrderingCustomerA field.field_value)
+    "50A" => do
+      party <- parse_bic_party field.field_value
+      pure (OrderingCustomerA party)
     "50F" => Right (OrderingCustomerF field.field_value)
     "50K" => Right (OrderingCustomerK field.field_value)
     _ => Left "invalid ordering-customer field in MT103"
@@ -71,7 +96,9 @@ ordering_customer_from_field field =
 beneficiary_customer_from_field : MtField → Either String BeneficiaryCustomer
 beneficiary_customer_from_field field =
   case field.field_tag of
-    "59A" => Right (BeneficiaryCustomerA field.field_value)
+    "59A" => do
+      party <- parse_bic_party field.field_value
+      pure (BeneficiaryCustomerA party)
     "59F" => Right (BeneficiaryCustomerF field.field_value)
     "59" => Right (BeneficiaryCustomerNoOption field.field_value)
     _ => Left "invalid beneficiary-customer field in MT103"
