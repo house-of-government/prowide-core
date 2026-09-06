@@ -1,12 +1,22 @@
 nonempty	PROWIDE-CORE-EDRIC-FACADE	Mt.idric
 contains	PROWIDE-CORE-EDRIC-REEXPORT	Mt.idric	import public Mt.Types
+contains	PROWIDE-CORE-EDRIC-SCHEMA-REEXPORT	Mt.idric	import public Mt.Schema
 contains	PROWIDE-CORE-EDRIC-FIELD	Mt/Types.idric	record MtField where
+contains	PROWIDE-CORE-EDRIC-FIELD32A	Mt/Types.idric	record ValueDateCurrencyAmount where
+contains	PROWIDE-CORE-EDRIC-ORDERING-CHOICE	Mt/Types.idric	data OrderingCustomer
+contains	PROWIDE-CORE-EDRIC-BENEFICIARY-CHOICE	Mt/Types.idric	data BeneficiaryCustomer
 contains	PROWIDE-CORE-EDRIC-MT103	Mt/Types.idric	record MT103 where
+contains	PROWIDE-CORE-EDRIC-MT103-SCHEMA	Mt/Schema.idric	mt103_schema : MtMessageSchema
+contains	PROWIDE-CORE-EDRIC-MT103-VALIDATOR	Mt/Schema.idric	validate_mt103_fields : List MtField → Either String ()
 contains	PROWIDE-CORE-EDRIC-FIN-WRITER	Mt/Fin.idric	render_fin : SwiftEnvelope → String
 contains	PROWIDE-CORE-EDRIC-MT103-WRITER	Mt/Fin.idric	render_mt103 : MT103 → String
 contains	PROWIDE-CORE-EDRIC-FIN-PARSER	Mt/Parse.idric	parse_fin : String → Either String SwiftEnvelope
 contains	PROWIDE-CORE-EDRIC-MT103-DECODER	Mt/Typed.idric	mt103_from_envelope : SwiftEnvelope → Either String MT103
 contains	PROWIDE-CORE-EDRIC-ROUNDTRIP	tests/MtTests.idric	FIN parses and writes without change
 contains	PROWIDE-CORE-EDRIC-MULTILINE	tests/MtTests.idric	FIN preserves optional blocks and multiline fields
+contains	PROWIDE-CORE-EDRIC-SCHEMA-ALTERNATIVES	tests/MtTests.idric	MT103 schema accepts mandatory field alternatives
+contains	PROWIDE-CORE-EDRIC-SCHEMA-REPETITION	tests/MtTests.idric	MT103 schema accepts generated repetitive fields
+contains	PROWIDE-CORE-EDRIC-SCHEMA-UNKNOWN	tests/MtTests.idric	MT103 schema rejects a field outside the generated MT103 grammar
 contains	PROWIDE-CORE-EDRIC-TYPED	tests/MtTests.idric	generic FIN decodes to typed MT103
-contains	PROWIDE-CORE-EDRIC-PACKAGE	prowide-core.ipkg	modules = Mt, Mt.Types, Mt.Fin, Mt.Parse, Mt.Typed
+contains	PROWIDE-CORE-EDRIC-TYPED-ALTERNATIVES	tests/MtTests.idric	typed MT103 preserves 50/59 alternatives and exact 32A components
+contains	PROWIDE-CORE-EDRIC-PACKAGE	prowide-core.ipkg	modules = Mt, Mt.Types, Mt.Schema, Mt.Fin, Mt.Parse, Mt.Typed
