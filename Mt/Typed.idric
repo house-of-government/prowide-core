@@ -1,0 +1,63 @@
+module Mt.Typed
+
+import Mt.Types
+
+%default total
+
+starts_with : List Char → List Char → Bool
+starts_with [] _ = True
+starts_with _ [] = False
+starts_with (expected :: remaining_prefix) (actual :: remaining) =
+  expected == actual && starts_with remaining_prefix remaining
+
+mt103_header : String → Bool
+mt103_header header =
+  starts_with (unpack "I103") (unpack header) ||
+  starts_with (unpack "O103") (unpack header)
+
+find_field : String → List MtField → Maybe String
+find_field _ [] = Nothing
+find_field tag (field :: remaining) =
+  if field.field_tag == tag
+    then Just field.field_value
+    else find_field tag remaining
+
+required_field : String → List MtField → Either String String
+required_field tag fields =
+  case find_field tag fields of
+    Nothing => Left ("MT103 is missing required field :" ++ tag ++ ":")
+    Just value => Right value
+
+public export
+mt103_from_envelope : SwiftEnvelope → Either String MT103
+mt103_from_envelope message =
+  if not (mt103_header message.envelope_application_header)
+    then Left "FIN block 2 does not identify an MT103"
+    else case required_field "20" message.envelope_text of
+      Left problem => Left problem
+      Right reference =>
+        case required_field "23B" message.envelope_text of
+          Left problem => Left problem
+          Right operation_code =>
+            case required_field "32A" message.envelope_text of
+              Left problem => Left problem
+              Right value_date_amount =>
+                case required_field "50K" message.envelope_text of
+                  Left problem => Left problem
+                  Right ordering_customer =>
+                    case required_field "59" message.envelope_text of
+                      Left problem => Left problem
+                      Right beneficiary =>
+                        case required_field "71A" message.envelope_text of
+                          Left problem => Left problem
+                          Right charges =>
+                            Right
+                              (MkMT103
+                                message.envelope_basic_header
+                                message.envelope_application_header
+                                reference
+                                operation_code
+                                value_date_amount
+                                ordering_customer
+                                beneficiary
+                                charges)
