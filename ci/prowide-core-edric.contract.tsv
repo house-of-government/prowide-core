@@ -5,6 +5,8 @@ contains	PROWIDE-CORE-EDRIC-MT103	Mt/Types.idric	record MT103 where
 contains	PROWIDE-CORE-EDRIC-FIN-WRITER	Mt/Fin.idric	render_fin : SwiftEnvelope → String
 contains	PROWIDE-CORE-EDRIC-MT103-WRITER	Mt/Fin.idric	render_mt103 : MT103 → String
 contains	PROWIDE-CORE-EDRIC-FIN-PARSER	Mt/Parse.idric	parse_fin : String → Either String SwiftEnvelope
+contains	PROWIDE-CORE-EDRIC-MT103-DECODER	Mt/Typed.idric	mt103_from_envelope : SwiftEnvelope → Either String MT103
 contains	PROWIDE-CORE-EDRIC-ROUNDTRIP	tests/MtTests.idric	FIN parses and writes without change
 contains	PROWIDE-CORE-EDRIC-MULTILINE	tests/MtTests.idric	FIN preserves optional blocks and multiline fields
-contains	PROWIDE-CORE-EDRIC-PACKAGE	prowide-core.ipkg	modules = Mt, Mt.Types, Mt.Fin, Mt.Parse
+contains	PROWIDE-CORE-EDRIC-TYPED	tests/MtTests.idric	generic FIN decodes to typed MT103
+contains	PROWIDE-CORE-EDRIC-PACKAGE	prowide-core.ipkg	modules = Mt, Mt.Types, Mt.Fin, Mt.Parse, Mt.Typed
