@@ -23,7 +23,7 @@ Do not hand-translate thousands of generated Java classes. Extract the field/mes
 
 ## Current executable slice
 
-`Mt.Types` defines a generic FIN envelope and the first typed message, MT103. `Mt.Fin` renders that model to FIN wire text. `tests/MtTests.idric` fixes field order and exact wire output as acceptance behavior.
+`Mt.Types` defines a generic FIN envelope and the first typed message, MT103. `Mt.Fin` renders that model to FIN wire text. `Mt.Parse` reads blocks 1–5 with balanced nested braces, parses block 4 fields, and preserves continuation lines. `tests/MtTests.idric` fixes MT103 field order, exact wire output, generic FIN parse/write behavior, optional blocks 3/5, and multiline fields as acceptance behavior.
 
 Run:
 
@@ -31,4 +31,4 @@ Run:
 make test
 ```
 
-The next correctness milestone is `FIN → model → FIN` for the same MT103 fixture, followed by multiline fields and optional blocks 3/5.
+The next correctness milestone is typed `SwiftEnvelope → MT103` validation, then block 2 direction/header types, BIC/IBAN types, RJE framing, and schema-derived generation for the remaining MT field/message declarations.
