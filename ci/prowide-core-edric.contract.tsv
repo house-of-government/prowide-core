@@ -1,0 +1,8 @@
+nonempty	PROWIDE-CORE-EDRIC-FACADE	Mt.idric
+contains	PROWIDE-CORE-EDRIC-REEXPORT	Mt.idric	import public Mt.Types
+contains	PROWIDE-CORE-EDRIC-FIELD	Mt/Types.idric	record MtField where
+contains	PROWIDE-CORE-EDRIC-MT103	Mt/Types.idric	record MT103 where
+contains	PROWIDE-CORE-EDRIC-FIN-WRITER	Mt/Fin.idric	render_fin : SwiftEnvelope → String
+contains	PROWIDE-CORE-EDRIC-MT103-WRITER	Mt/Fin.idric	render_mt103 : MT103 → String
+contains	PROWIDE-CORE-EDRIC-TEST	tests/MtTests.idric	MT103 renders canonical FIN block order
+contains	PROWIDE-CORE-EDRIC-PACKAGE	prowide-core.ipkg	modules = Mt, Mt.Types, Mt.Fin
