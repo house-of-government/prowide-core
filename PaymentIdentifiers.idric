@@ -26,8 +26,12 @@ ascii_digit character = character >= '0' && character <= '9'
 upper_alphanumeric : Char → Bool
 upper_alphanumeric character = upper_alpha character || ascii_digit character
 
-bic_shape : (Char → Bool) → List Char → Bool
-bic_shape party_character [a, b, c, d, e, f, g, h] =
+bic_core_shape :
+  (Char → Bool) →
+  Char → Char → Char → Char →
+  Char → Char → Char → Char →
+  Bool
+bic_core_shape party_character a b c d e f g h =
   party_character a &&
   party_character b &&
   party_character c &&
@@ -36,8 +40,12 @@ bic_shape party_character [a, b, c, d, e, f, g, h] =
   upper_alpha f &&
   upper_alphanumeric g &&
   upper_alphanumeric h
+
+bic_shape : (Char → Bool) → List Char → Bool
+bic_shape party_character [a, b, c, d, e, f, g, h] =
+  bic_core_shape party_character a b c d e f g h
 bic_shape party_character [a, b, c, d, e, f, g, h, i, j, k] =
-  bic_shape party_character [a, b, c, d, e, f, g, h] &&
+  bic_core_shape party_character a b c d e f g h &&
   upper_alphanumeric i &&
   upper_alphanumeric j &&
   upper_alphanumeric k
