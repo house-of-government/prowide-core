@@ -1,0 +1,41 @@
+name: Edric MT CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  mt:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Prowide Core fork
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Checkout present Idriç compiler
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: isomorphisms/Idric
+          ref: Idriç
+          path: .tools/Idric
+
+      - name: Install compiler bootstrap dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends chezscheme
+
+      - name: Build present Idriç compiler
+        run: |
+          make -C "$GITHUB_WORKSPACE/.tools/Idric" bootstrap SCHEME=scheme
+          "$GITHUB_WORKSPACE/.tools/Idric/build/exec/idris2" --version
+
+      - name: Build and run MT acceptance tests
+        env:
+          IDRIS2_PREFIX: ${{ github.workspace }}/.tools/Idric/bootstrap-build
+        run: |
+          make test IDRIC="$GITHUB_WORKSPACE/.tools/Idric/build/exec/idris2"
+
+      - name: Verify ai-ci contract from present main
+        uses: isomorphisms/ai-ci@main
+        with:
+          suite: ci/ai-ci.suite.tsv
+          root: .
