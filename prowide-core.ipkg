@@ -3,4 +3,6 @@ package prowide_core_edric
 version = 0.1.0
 sourcedir = "."
 
-modules = PaymentIdentifiers, Mt, Mt.Types, Mt.Schema, Mt.Fin, Mt.Parse, Mt.Typed
+depends = prowide_identifiers_edric
+
+modules = Mt, Mt.Types, Mt.Schema, Mt.Fin, Mt.Parse, Mt.Typed
