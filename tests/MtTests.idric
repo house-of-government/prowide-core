@@ -35,7 +35,7 @@ alternative_fields =
   [ MkMtField "20" "REFERENCE-ALT"
   , MkMtField "23B" "CRED"
   , MkMtField "32A" "260906EUR10,00"
-  , MkMtField "50A" "BANKBEBBAXXX"
+  , MkMtField "50A" "/12345678\r\nBANKBEBBXXX"
   , MkMtField "59F" "/12345678\r\n1/BENEFICIARY"
   , MkMtField "71A" "OUR"
   ]
@@ -48,7 +48,7 @@ alternative_fin =
   ":20:REFERENCE-ALT\r\n" ++
   ":23B:CRED\r\n" ++
   ":32A:260906EUR10,00\r\n" ++
-  ":50A:BANKBEBBAXXX\r\n" ++
+  ":50A:/12345678\r\nBANKBEBBXXX\r\n" ++
   ":59F:/12345678\r\n1/BENEFICIARY\r\n" ++
   ":71A:OUR\r\n" ++
   "-}"
@@ -165,12 +165,53 @@ typed_alternative_round_trip =
     Left _ => False
     Right typed =>
       case (typed.ordering_customer, typed.beneficiary_customer) of
-        (OrderingCustomerA "BANKBEBBAXXX", BeneficiaryCustomerF "/12345678\r\n1/BENEFICIARY") =>
-          typed.value_date_currency_amount.value_date == "260906" &&
-          typed.value_date_currency_amount.currency_code == "EUR" &&
-          typed.value_date_currency_amount.amount_text == "10,00" &&
-          render_mt103 typed == alternative_fin
+        (OrderingCustomerA party, BeneficiaryCustomerF "/12345678\r\n1/BENEFICIARY") =>
+          case party.account of
+            Nothing => False
+            Just account =>
+              account_text account == "12345678" &&
+              bic_text party.bic == "BANKBEBBXXX" &&
+              typed.value_date_currency_amount.value_date == "260906" &&
+              typed.value_date_currency_amount.currency_code == "EUR" &&
+              typed.value_date_currency_amount.amount_text == "10,00" &&
+              render_mt103 typed == alternative_fin
         _ => False
+
+shared_bic_shape_test : Bool
+shared_bic_shape_test =
+  case parse_bic "A1CDBEBBXXX" of
+    Left _ => False
+    Right bic => bic_text bic == "A1CDBEBBXXX"
+
+fin_bic_boundary_test : Bool
+fin_bic_boundary_test =
+  case ( parse_fin_bic "BANKBEBBXXX"
+       , parse_fin_bic "A1CDBEBBXXX"
+       , parse_fin_bic "BANKBEBBAXXX"
+       ) of
+    (Right bic, Left _, Left _) => bic_text bic == "BANKBEBBXXX"
+    _ => False
+
+account_boundary_test : Bool
+account_boundary_test =
+  case (parse_account "123/ABC", parse_account "", parse_account "A\nB") of
+    (Right account, Left _, Left _) => account_text account == "123/ABC"
+    _ => False
+
+invalid_option_a_rejected : Bool
+invalid_option_a_rejected =
+  let fields =
+        [ MkMtField "20" "REFERENCE"
+        , MkMtField "23B" "CRED"
+        , MkMtField "32A" "260906USD1,00"
+        , MkMtField "50A" "BANKBEBBAXXX"
+        , MkMtField "59" "BENEFICIARY"
+        , MkMtField "71A" "SHA"
+        ]
+      envelope = MkSwiftEnvelope "F01BANKBEBBAXXX0000000000" "I103BANKDEFFXXXXN" Nothing fields Nothing
+  in case mt103_from_envelope envelope of
+    Left _ => True
+    Right _ => False
 
 wrong_message_type_rejected : Bool
 wrong_message_type_rejected =
@@ -195,6 +236,10 @@ all_pass =
   schema_rejects_unknown_field &&
   typed_mt103_round_trip &&
   typed_alternative_round_trip &&
+  shared_bic_shape_test &&
+  fin_bic_boundary_test &&
+  account_boundary_test &&
+  invalid_option_a_rejected &&
   wrong_message_type_rejected
 
 main : IO ()
@@ -209,6 +254,10 @@ main = do
   check "MT103 schema rejects two alternatives in a single-choice field group" schema_rejects_duplicate_choice
   check "MT103 schema rejects a field outside the generated MT103 grammar" schema_rejects_unknown_field
   check "generic FIN decodes to typed MT103" typed_mt103_round_trip
-  check "typed MT103 preserves 50/59 alternatives and exact 32A components" typed_alternative_round_trip
+  check "typed MT103 option A uses shared account and BIC primitives" typed_alternative_round_trip
+  check "shared BIC accepts the ISO 9362 alphanumeric party prefix" shared_bic_shape_test
+  check "FIN BIC is stricter and rejects LT-address shape" fin_bic_boundary_test
+  check "account primitive refuses empty and multiline identifiers" account_boundary_test
+  check "typed MT103 rejects a 12-character LT address in option A" invalid_option_a_rejected
   check "typed MT103 decoder rejects another message type" wrong_message_type_rejected
   if all_pass then pure () else exitFailure
