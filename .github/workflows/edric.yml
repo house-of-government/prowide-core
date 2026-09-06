@@ -4,6 +4,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: edric-mt-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   mt:
     runs-on: ubuntu-24.04
