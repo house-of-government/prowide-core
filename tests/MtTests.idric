@@ -12,9 +12,9 @@ sample_mt103 =
     "I103BANKDEFFXXXXN"
     "REFERENCE123"
     "CRED"
-    "260906USD1234,56"
-    "/12345678 JOHN CUSTOMER"
-    "/87654321 JANE BENEFICIARY"
+    (MkValueDateCurrencyAmount "260906" "USD" "1234,56")
+    (OrderingCustomerK "/12345678 JOHN CUSTOMER")
+    (BeneficiaryCustomerNoOption "/87654321 JANE BENEFICIARY")
     "SHA"
 
 expected_fin : String
@@ -28,6 +28,29 @@ expected_fin =
   ":50K:/12345678 JOHN CUSTOMER\r\n" ++
   ":59:/87654321 JANE BENEFICIARY\r\n" ++
   ":71A:SHA\r\n" ++
+  "-}"
+
+alternative_fields : List MtField
+alternative_fields =
+  [ MkMtField "20" "REFERENCE-ALT"
+  , MkMtField "23B" "CRED"
+  , MkMtField "32A" "260906EUR10,00"
+  , MkMtField "50A" "BANKBEBBAXXX"
+  , MkMtField "59F" "/12345678\r\n1/BENEFICIARY"
+  , MkMtField "71A" "OUR"
+  ]
+
+alternative_fin : String
+alternative_fin =
+  "{1:F01BANKBEBBAXXX0000000000}" ++
+  "{2:I103BANKDEFFXXXXN}" ++
+  "{4:\r\n" ++
+  ":20:REFERENCE-ALT\r\n" ++
+  ":23B:CRED\r\n" ++
+  ":32A:260906EUR10,00\r\n" ++
+  ":50A:BANKBEBBAXXX\r\n" ++
+  ":59F:/12345678\r\n1/BENEFICIARY\r\n" ++
+  ":71A:OUR\r\n" ++
   "-}"
 
 multiline_fin : String
@@ -76,6 +99,50 @@ multiline_round_trip =
         ] => render_fin parsed == multiline_fin
         _ => False
 
+schema_accepts_alternatives : Bool
+schema_accepts_alternatives =
+  case validate_mt103_fields alternative_fields of
+    Left _ => False
+    Right () => True
+
+schema_accepts_repetition : Bool
+schema_accepts_repetition =
+  case validate_mt103_fields
+    (alternative_fields ++
+      [ MkMtField "13C" "/RNCTIME/1200+0000"
+      , MkMtField "13C" "/SNDTIME/1201+0000"
+      , MkMtField "23E" "SDVA"
+      , MkMtField "23E" "PHOB"
+      , MkMtField "71F" "USD1,00"
+      , MkMtField "71F" "EUR1,00"
+      ]) of
+    Left _ => False
+    Right () => True
+
+schema_rejects_missing_mandatory : Bool
+schema_rejects_missing_mandatory =
+  case validate_mt103_fields
+    [ MkMtField "20" "REFERENCE"
+    , MkMtField "23B" "CRED"
+    , MkMtField "32A" "260906USD1,00"
+    , MkMtField "50K" "CUSTOMER"
+    , MkMtField "71A" "SHA"
+    ] of
+    Left _ => True
+    Right () => False
+
+schema_rejects_duplicate_choice : Bool
+schema_rejects_duplicate_choice =
+  case validate_mt103_fields (MkMtField "50K" "SECOND CUSTOMER" :: alternative_fields) of
+    Left _ => True
+    Right () => False
+
+schema_rejects_unknown_field : Bool
+schema_rejects_unknown_field =
+  case validate_mt103_fields (alternative_fields ++ [MkMtField "99Z" "NOT MT103"]) of
+    Left _ => True
+    Right () => False
+
 typed_mt103_round_trip : Bool
 typed_mt103_round_trip =
   case parse_fin expected_fin of
@@ -84,6 +151,26 @@ typed_mt103_round_trip =
       case mt103_from_envelope envelope of
         Left _ => False
         Right typed => render_mt103 typed == expected_fin
+
+typed_alternative_round_trip : Bool
+typed_alternative_round_trip =
+  let envelope =
+        MkSwiftEnvelope
+          "F01BANKBEBBAXXX0000000000"
+          "I103BANKDEFFXXXXN"
+          Nothing
+          alternative_fields
+          Nothing
+  in case mt103_from_envelope envelope of
+    Left _ => False
+    Right typed =>
+      case (typed.ordering_customer, typed.beneficiary_customer) of
+        (OrderingCustomerA "BANKBEBBAXXX", BeneficiaryCustomerF "/12345678\r\n1/BENEFICIARY") =>
+          typed.value_date_currency_amount.value_date == "260906" &&
+          typed.value_date_currency_amount.currency_code == "EUR" &&
+          typed.value_date_currency_amount.amount_text == "10,00" &&
+          render_mt103 typed == alternative_fin
+        _ => False
 
 wrong_message_type_rejected : Bool
 wrong_message_type_rejected =
@@ -101,7 +188,13 @@ all_pass =
   field_order &&
   fin_round_trip &&
   multiline_round_trip &&
+  schema_accepts_alternatives &&
+  schema_accepts_repetition &&
+  schema_rejects_missing_mandatory &&
+  schema_rejects_duplicate_choice &&
+  schema_rejects_unknown_field &&
   typed_mt103_round_trip &&
+  typed_alternative_round_trip &&
   wrong_message_type_rejected
 
 main : IO ()
@@ -110,6 +203,12 @@ main = do
   check "MT103 fields preserve SWIFT order" field_order
   check "FIN parses and writes without change" fin_round_trip
   check "FIN preserves optional blocks and multiline fields" multiline_round_trip
+  check "MT103 schema accepts mandatory field alternatives" schema_accepts_alternatives
+  check "MT103 schema accepts generated repetitive fields" schema_accepts_repetition
+  check "MT103 schema rejects a missing mandatory field group" schema_rejects_missing_mandatory
+  check "MT103 schema rejects two alternatives in a single-choice field group" schema_rejects_duplicate_choice
+  check "MT103 schema rejects a field outside the generated MT103 grammar" schema_rejects_unknown_field
   check "generic FIN decodes to typed MT103" typed_mt103_round_trip
+  check "typed MT103 preserves 50/59 alternatives and exact 32A components" typed_alternative_round_trip
   check "typed MT103 decoder rejects another message type" wrong_message_type_rejected
   if all_pass then pure () else exitFailure
