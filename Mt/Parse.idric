@@ -30,8 +30,8 @@ take_balanced depth (character :: rest) =
     Right (inside, remaining) => Right (character :: inside, remaining)
 
 consume_block : String → String → List Char → Either String (String, List Char)
-consume_block block_name prefix input =
-  case strip_prefix (unpack prefix) input of
+consume_block block_name opening input =
+  case strip_prefix (unpack opening) input of
     Nothing => Left ("expected FIN block " ++ block_name)
     Just body =>
       case take_balanced 1 body of
@@ -39,8 +39,8 @@ consume_block block_name prefix input =
         Right (content, remaining) => Right (pack content, remaining)
 
 consume_optional_block : String → List Char → Either String (Maybe String, List Char)
-consume_optional_block prefix input =
-  case strip_prefix (unpack prefix) input of
+consume_optional_block opening input =
+  case strip_prefix (unpack opening) input of
     Nothing => Right (Nothing, input)
     Just body =>
       case take_balanced 1 body of
