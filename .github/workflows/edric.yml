@@ -25,6 +25,7 @@ jobs:
       - name: Build present Idriç compiler through its public entrypoint
         run: |
           "$GITHUB_WORKSPACE/.tools/Idric/edric" bootstrap
+          echo "$GITHUB_WORKSPACE/.tools/Idric/_/.tools/bin" >> "$GITHUB_PATH"
           "$GITHUB_WORKSPACE/.tools/Idric/idris2" --version
 
       - name: Build and run MT acceptance tests
