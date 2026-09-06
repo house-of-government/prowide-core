@@ -1,0 +1,29 @@
+module Mt.Fin
+
+import Mt.Types
+
+%default total
+
+render_optional_block : String → Maybe String → String
+render_optional_block _ Nothing = ""
+render_optional_block block_number (Just content) =
+  "{" ++ block_number ++ ":" ++ content ++ "}"
+
+render_fields : List MtField → String
+render_fields [] = ""
+render_fields (field :: remaining) =
+  ":" ++ field.field_tag ++ ":" ++ field.field_value ++ "\r\n" ++
+  render_fields remaining
+
+public export
+render_fin : SwiftEnvelope → String
+render_fin message =
+  "{1:" ++ message.envelope_basic_header ++ "}" ++
+  "{2:" ++ message.envelope_application_header ++ "}" ++
+  render_optional_block "3" message.envelope_user_header ++
+  "{4:\r\n" ++ render_fields message.envelope_text ++ "-}" ++
+  render_optional_block "5" message.envelope_trailer
+
+public export
+render_mt103 : MT103 → String
+render_mt103 message = render_fin (mt103_envelope message)
