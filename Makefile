@@ -1,10 +1,14 @@
 IDRIC ?= idris2
-IDRIC_SOURCES := $(wildcard Mt/*.idric tests/*.idric) Mt.idric
+IDRIC_SOURCES := PaymentIdentifiers.idric $(wildcard Mt/*.idric tests/*.idric) Mt.idric
 
-.PHONY: all test check-vocabulary clean
+.PHONY: all identifiers test check-vocabulary clean
 
-all: check-vocabulary
+all: check-vocabulary identifiers
 	$(IDRIC) --build prowide-core.ipkg
+
+identifiers:
+	$(IDRIC) --build prowide-identifiers.ipkg
+	$(IDRIC) --install prowide-identifiers.ipkg
 
 check-vocabulary:
 	@if grep -nE '(^|[^[:alnum:]_])Nat([^[:alnum:]_]|$$)' $(IDRIC_SOURCES); then \
@@ -13,7 +17,7 @@ check-vocabulary:
 	fi
 
 test: all
-	$(IDRIC) tests/MtTests.idric -o prowide-core-edric-tests
+	$(IDRIC) -p prowide_identifiers_edric tests/MtTests.idric -o prowide-core-edric-tests
 	./build/exec/prowide-core-edric-tests
 
 clean:
