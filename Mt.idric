@@ -1,4 +1,4 @@
 module Mt
 
-public import Mt.Types
-public import Mt.Fin
+import public Mt.Types
+import public Mt.Fin
