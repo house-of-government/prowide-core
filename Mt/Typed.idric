@@ -76,7 +76,7 @@ parse_bic_party value =
       case split_first_crlf account_and_bic of
         Nothing => Left "FIN option A account must be followed by a BIC line"
         Just (account_characters, bic_characters) => do
-          account <- parse_account (pack account_characters)
+          account <- other_account (pack account_characters)
           bic <- parse_fin_bic (pack bic_characters)
           pure (MkBicParty (Just account) bic)
     _ => do
