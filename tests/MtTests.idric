@@ -167,14 +167,14 @@ typed_alternative_round_trip =
       case (typed.ordering_customer, typed.beneficiary_customer) of
         (OrderingCustomerA party, BeneficiaryCustomerF "/12345678\r\n1/BENEFICIARY") =>
           case party.account of
-            Nothing => False
-            Just account =>
+            Just (OtherAccount account) =>
               account_text account == "12345678" &&
               bic_text party.bic == "BANKBEBBXXX" &&
               typed.value_date_currency_amount.value_date == "260906" &&
               typed.value_date_currency_amount.currency_code == "EUR" &&
               typed.value_date_currency_amount.amount_text == "10,00" &&
               render_mt103 typed == alternative_fin
+            _ => False
         _ => False
 
 shared_bic_shape_test : Bool
@@ -197,6 +197,45 @@ account_boundary_test =
   case (parse_account "123/ABC", parse_account "", parse_account "A\nB") of
     (Right account, Left _, Left _) => account_text account == "123/ABC"
     _ => False
+
+iban_boundary_test : Bool
+iban_boundary_test =
+  case ( iban_account "DE89370400440532013000"
+       , iban_account "DE88370400440532013000"
+       , iban_account "DE893704004405320130000"
+       , iban_account "ZZ001234567890"
+       ) of
+    (Right (IbanAccount iban), Left _, Left _, Left _) =>
+      iban_text iban == "DE89370400440532013000"
+    _ => False
+
+fin_account_is_not_inferred_as_iban : Bool
+fin_account_is_not_inferred_as_iban =
+  let fields =
+        [ MkMtField "20" "REFERENCE"
+        , MkMtField "23B" "CRED"
+        , MkMtField "32A" "260906EUR10,00"
+        , MkMtField "50A" "/DE89370400440532013000\r\nBANKBEBBXXX"
+        , MkMtField "59" "BENEFICIARY"
+        , MkMtField "71A" "SHA"
+        ]
+      envelope =
+        MkSwiftEnvelope
+          "F01BANKBEBBAXXX0000000000"
+          "I103BANKDEFFXXXXN"
+          Nothing
+          fields
+          Nothing
+  in case mt103_from_envelope envelope of
+    Left _ => False
+    Right typed =>
+      case typed.ordering_customer of
+        OrderingCustomerA party =>
+          case party.account of
+            Just (OtherAccount account) =>
+              account_text account == "DE89370400440532013000"
+            _ => False
+        _ => False
 
 invalid_option_a_rejected : Bool
 invalid_option_a_rejected =
@@ -239,6 +278,8 @@ all_pass =
   shared_bic_shape_test &&
   fin_bic_boundary_test &&
   account_boundary_test &&
+  iban_boundary_test &&
+  fin_account_is_not_inferred_as_iban &&
   invalid_option_a_rejected &&
   wrong_message_type_rejected
 
@@ -254,10 +295,12 @@ main = do
   check "MT103 schema rejects two alternatives in a single-choice field group" schema_rejects_duplicate_choice
   check "MT103 schema rejects a field outside the generated MT103 grammar" schema_rejects_unknown_field
   check "generic FIN decodes to typed MT103" typed_mt103_round_trip
-  check "typed MT103 option A uses shared account and BIC primitives" typed_alternative_round_trip
+  check "typed MT103 option A uses shared account-identification and BIC primitives" typed_alternative_round_trip
   check "shared BIC accepts the ISO 9362 alphanumeric party prefix" shared_bic_shape_test
   check "FIN BIC is stricter and rejects LT-address shape" fin_bic_boundary_test
   check "account primitive refuses empty and multiline identifiers" account_boundary_test
+  check "shared IBAN validates registered length and MOD97 checksum" iban_boundary_test
+  check "FIN account text is not guessed to be IBAN" fin_account_is_not_inferred_as_iban
   check "typed MT103 rejects a 12-character LT address in option A" invalid_option_a_rejected
   check "typed MT103 decoder rejects another message type" wrong_message_type_rejected
   if all_pass then pure () else exitFailure
