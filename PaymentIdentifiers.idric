@@ -12,16 +12,6 @@ record Account where
   constructor MkAccount
   account_value : String
 
-public export
-record Iban where
-  constructor MkIban
-  iban_value : String
-
-public export
-data AccountIdentification
-  = IbanAccount Iban
-  | OtherAccount Account
-
 upper_alpha : Char → Bool
 upper_alpha character = character >= 'A' && character <= 'Z'
 
@@ -291,22 +281,46 @@ iban_checksum_valid (a :: b :: c :: d :: remaining) =
 iban_checksum_valid _ = False
 
 public export
-iban_text : Iban → String
-iban_text iban = iban.iban_value
+iban_valid : String → Bool
+iban_valid text =
+  let characters = unpack text in
+    case registered_iban_length characters of
+      Nothing => False
+      Just expected =>
+        iban_shape characters &&
+        length characters == expected &&
+        iban_checksum_valid characters
 
 public export
-parse_iban : String → Either String Iban
-parse_iban text =
-  let characters = unpack text in
-    if not (iban_shape characters)
-      then Left "IBAN must contain two uppercase country letters, two check digits, and an alphanumeric BBAN"
-      else case registered_iban_length characters of
-        Nothing => Left "IBAN country code is not in the supported SWIFT registry"
-        Just expected =>
-          if not (length characters == expected)
-            then Left "IBAN length does not match its registered country format"
-            else if iban_checksum_valid characters
-              then Right (MkIban text)
+data Iban : Bool → Type where
+  MkIban : (text : String) → Iban (iban_valid text)
+
+public export
+ValidIban : Type
+ValidIban = Iban True
+
+public export
+data AccountIdentification
+  = IbanAccount ValidIban
+  | OtherAccount Account
+
+public export
+iban_text : {validity : Bool} → Iban validity → String
+iban_text (MkIban text) = text
+
+public export
+parse_iban : String → Either String ValidIban
+parse_iban text with (iban_valid text)
+  parse_iban text | True = Right (MkIban text)
+  parse_iban text | False =
+    let characters = unpack text in
+      if not (iban_shape characters)
+        then Left "IBAN must contain two uppercase country letters, two check digits, and an alphanumeric BBAN"
+        else case registered_iban_length characters of
+          Nothing => Left "IBAN country code is not in the supported SWIFT registry"
+          Just expected =>
+            if not (length characters == expected)
+              then Left "IBAN length does not match its registered country format"
               else Left "IBAN checksum is invalid"
 
 public export
