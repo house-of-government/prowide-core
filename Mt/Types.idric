@@ -29,7 +29,7 @@ record ValueDateCurrencyAmount where
 public export
 record BicParty where
   constructor MkBicParty
-  account : Maybe Account
+  account : Maybe AccountIdentification
   bic : Bic
 
 public export
@@ -65,7 +65,7 @@ bic_party_text : BicParty → String
 bic_party_text party =
   case party.account of
     Nothing => bic_text party.bic
-    Just account => "/" ++ account_text account ++ "\r\n" ++ bic_text party.bic
+    Just account => "/" ++ account_identification_text account ++ "\r\n" ++ bic_text party.bic
 
 ordering_customer_field : OrderingCustomer → MtField
 ordering_customer_field (OrderingCustomerA party) = MkMtField "50A" (bic_party_text party)
