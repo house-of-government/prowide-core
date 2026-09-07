@@ -201,12 +201,14 @@ account_boundary_test =
 iban_boundary_test : Bool
 iban_boundary_test =
   case ( iban_account "DE89370400440532013000"
+       , iban_account "HN88CABF00000000000250005469"
        , iban_account "DE88370400440532013000"
        , iban_account "DE893704004405320130000"
        , iban_account "ZZ001234567890"
        ) of
-    (Right (IbanAccount iban), Left _, Left _, Left _) =>
-      iban_text iban == "DE89370400440532013000"
+    (Right (IbanAccount german), Right (IbanAccount honduran), Left _, Left _, Left _) =>
+      iban_text german == "DE89370400440532013000" &&
+      iban_text honduran == "HN88CABF00000000000250005469"
     _ => False
 
 fin_account_is_not_inferred_as_iban : Bool
@@ -299,7 +301,7 @@ main = do
   check "shared BIC accepts the ISO 9362 alphanumeric party prefix" shared_bic_shape_test
   check "FIN BIC is stricter and rejects LT-address shape" fin_bic_boundary_test
   check "account primitive refuses empty and multiline identifiers" account_boundary_test
-  check "shared IBAN validates registered length and MOD97 checksum" iban_boundary_test
+  check "shared IBAN validates current registered lengths and MOD97 checksum" iban_boundary_test
   check "FIN account text is not guessed to be IBAN" fin_account_is_not_inferred_as_iban
   check "typed MT103 rejects a 12-character LT address in option A" invalid_option_a_rejected
   check "typed MT103 decoder rejects another message type" wrong_message_type_rejected
