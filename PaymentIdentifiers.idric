@@ -13,18 +13,35 @@ record Account where
   account_value : String
 
 public export
+record Iban where
+  constructor MkIban
+  iban_value : String
+
+public export
 data AccountIdentification
-  = IbanAccount Account
+  = IbanAccount Iban
   | OtherAccount Account
 
 upper_alpha : Char → Bool
 upper_alpha character = character >= 'A' && character <= 'Z'
+
+lower_alpha : Char → Bool
+lower_alpha character = character >= 'a' && character <= 'z'
 
 ascii_digit : Char → Bool
 ascii_digit character = character >= '0' && character <= '9'
 
 upper_alphanumeric : Char → Bool
 upper_alphanumeric character = upper_alpha character || ascii_digit character
+
+iban_alphanumeric : Char → Bool
+iban_alphanumeric character =
+  upper_alpha character || lower_alpha character || ascii_digit character
+
+all_iban_alphanumeric : List Char → Bool
+all_iban_alphanumeric [] = True
+all_iban_alphanumeric (character :: remaining) =
+  iban_alphanumeric character && all_iban_alphanumeric remaining
 
 bic_core_shape :
   (Char → Bool) →
@@ -87,11 +104,216 @@ parse_account text =
     then Left "account identifier contains a line break"
     else Right (MkAccount text)
 
+-- SWIFT IBAN Registry release 102 (June 2026).
+-- This table deliberately establishes only the registered country and fixed
+-- IBAN length. Domestic BBAN subfield validation is a separate boundary.
+registered_iban_length : List Char → Maybe ℕ
+registered_iban_length ('A' :: 'D' :: _) = Just 24
+registered_iban_length ('A' :: 'E' :: _) = Just 23
+registered_iban_length ('A' :: 'L' :: _) = Just 28
+registered_iban_length ('A' :: 'T' :: _) = Just 20
+registered_iban_length ('A' :: 'Z' :: _) = Just 28
+registered_iban_length ('B' :: 'A' :: _) = Just 20
+registered_iban_length ('B' :: 'E' :: _) = Just 16
+registered_iban_length ('B' :: 'G' :: _) = Just 22
+registered_iban_length ('B' :: 'H' :: _) = Just 22
+registered_iban_length ('B' :: 'I' :: _) = Just 27
+registered_iban_length ('B' :: 'R' :: _) = Just 29
+registered_iban_length ('B' :: 'Y' :: _) = Just 28
+registered_iban_length ('C' :: 'H' :: _) = Just 21
+registered_iban_length ('C' :: 'R' :: _) = Just 22
+registered_iban_length ('C' :: 'Y' :: _) = Just 28
+registered_iban_length ('C' :: 'Z' :: _) = Just 24
+registered_iban_length ('D' :: 'E' :: _) = Just 22
+registered_iban_length ('D' :: 'J' :: _) = Just 27
+registered_iban_length ('D' :: 'K' :: _) = Just 18
+registered_iban_length ('D' :: 'O' :: _) = Just 28
+registered_iban_length ('E' :: 'E' :: _) = Just 20
+registered_iban_length ('E' :: 'G' :: _) = Just 29
+registered_iban_length ('E' :: 'S' :: _) = Just 24
+registered_iban_length ('F' :: 'I' :: _) = Just 18
+registered_iban_length ('F' :: 'K' :: _) = Just 18
+registered_iban_length ('F' :: 'O' :: _) = Just 18
+registered_iban_length ('F' :: 'R' :: _) = Just 27
+registered_iban_length ('G' :: 'B' :: _) = Just 22
+registered_iban_length ('G' :: 'E' :: _) = Just 22
+registered_iban_length ('G' :: 'I' :: _) = Just 23
+registered_iban_length ('G' :: 'L' :: _) = Just 18
+registered_iban_length ('G' :: 'R' :: _) = Just 27
+registered_iban_length ('G' :: 'T' :: _) = Just 28
+registered_iban_length ('H' :: 'N' :: _) = Just 28
+registered_iban_length ('H' :: 'R' :: _) = Just 21
+registered_iban_length ('H' :: 'U' :: _) = Just 28
+registered_iban_length ('I' :: 'E' :: _) = Just 22
+registered_iban_length ('I' :: 'L' :: _) = Just 23
+registered_iban_length ('I' :: 'Q' :: _) = Just 23
+registered_iban_length ('I' :: 'S' :: _) = Just 26
+registered_iban_length ('I' :: 'T' :: _) = Just 27
+registered_iban_length ('J' :: 'O' :: _) = Just 30
+registered_iban_length ('K' :: 'W' :: _) = Just 30
+registered_iban_length ('K' :: 'Z' :: _) = Just 20
+registered_iban_length ('L' :: 'B' :: _) = Just 28
+registered_iban_length ('L' :: 'C' :: _) = Just 32
+registered_iban_length ('L' :: 'I' :: _) = Just 21
+registered_iban_length ('L' :: 'T' :: _) = Just 20
+registered_iban_length ('L' :: 'U' :: _) = Just 20
+registered_iban_length ('L' :: 'V' :: _) = Just 21
+registered_iban_length ('L' :: 'Y' :: _) = Just 25
+registered_iban_length ('M' :: 'C' :: _) = Just 27
+registered_iban_length ('M' :: 'D' :: _) = Just 24
+registered_iban_length ('M' :: 'E' :: _) = Just 22
+registered_iban_length ('M' :: 'K' :: _) = Just 19
+registered_iban_length ('M' :: 'N' :: _) = Just 20
+registered_iban_length ('M' :: 'R' :: _) = Just 27
+registered_iban_length ('M' :: 'T' :: _) = Just 31
+registered_iban_length ('M' :: 'U' :: _) = Just 30
+registered_iban_length ('N' :: 'I' :: _) = Just 28
+registered_iban_length ('N' :: 'L' :: _) = Just 18
+registered_iban_length ('N' :: 'O' :: _) = Just 15
+registered_iban_length ('O' :: 'M' :: _) = Just 23
+registered_iban_length ('P' :: 'K' :: _) = Just 24
+registered_iban_length ('P' :: 'L' :: _) = Just 28
+registered_iban_length ('P' :: 'S' :: _) = Just 29
+registered_iban_length ('P' :: 'T' :: _) = Just 25
+registered_iban_length ('Q' :: 'A' :: _) = Just 29
+registered_iban_length ('R' :: 'O' :: _) = Just 24
+registered_iban_length ('R' :: 'S' :: _) = Just 22
+registered_iban_length ('R' :: 'U' :: _) = Just 33
+registered_iban_length ('S' :: 'A' :: _) = Just 24
+registered_iban_length ('S' :: 'C' :: _) = Just 31
+registered_iban_length ('S' :: 'D' :: _) = Just 18
+registered_iban_length ('S' :: 'E' :: _) = Just 24
+registered_iban_length ('S' :: 'I' :: _) = Just 19
+registered_iban_length ('S' :: 'K' :: _) = Just 24
+registered_iban_length ('S' :: 'M' :: _) = Just 27
+registered_iban_length ('S' :: 'O' :: _) = Just 23
+registered_iban_length ('S' :: 'T' :: _) = Just 25
+registered_iban_length ('S' :: 'V' :: _) = Just 28
+registered_iban_length ('T' :: 'L' :: _) = Just 23
+registered_iban_length ('T' :: 'N' :: _) = Just 24
+registered_iban_length ('T' :: 'R' :: _) = Just 26
+registered_iban_length ('U' :: 'A' :: _) = Just 29
+registered_iban_length ('V' :: 'A' :: _) = Just 22
+registered_iban_length ('V' :: 'G' :: _) = Just 24
+registered_iban_length ('X' :: 'K' :: _) = Just 20
+registered_iban_length ('Y' :: 'E' :: _) = Just 30
+registered_iban_length _ = Nothing
+
+iban_shape : List Char → Bool
+iban_shape (country_a :: country_b :: check_a :: check_b :: bban) =
+  upper_alpha country_a &&
+  upper_alpha country_b &&
+  ascii_digit check_a &&
+  ascii_digit check_b &&
+  all_iban_alphanumeric bban
+iban_shape _ = False
+
+iban_decimal_value : Char → Maybe ℕ
+iban_decimal_value '0' = Just 0
+iban_decimal_value '1' = Just 1
+iban_decimal_value '2' = Just 2
+iban_decimal_value '3' = Just 3
+iban_decimal_value '4' = Just 4
+iban_decimal_value '5' = Just 5
+iban_decimal_value '6' = Just 6
+iban_decimal_value '7' = Just 7
+iban_decimal_value '8' = Just 8
+iban_decimal_value '9' = Just 9
+iban_decimal_value 'A' = Just 10
+iban_decimal_value 'a' = Just 10
+iban_decimal_value 'B' = Just 11
+iban_decimal_value 'b' = Just 11
+iban_decimal_value 'C' = Just 12
+iban_decimal_value 'c' = Just 12
+iban_decimal_value 'D' = Just 13
+iban_decimal_value 'd' = Just 13
+iban_decimal_value 'E' = Just 14
+iban_decimal_value 'e' = Just 14
+iban_decimal_value 'F' = Just 15
+iban_decimal_value 'f' = Just 15
+iban_decimal_value 'G' = Just 16
+iban_decimal_value 'g' = Just 16
+iban_decimal_value 'H' = Just 17
+iban_decimal_value 'h' = Just 17
+iban_decimal_value 'I' = Just 18
+iban_decimal_value 'i' = Just 18
+iban_decimal_value 'J' = Just 19
+iban_decimal_value 'j' = Just 19
+iban_decimal_value 'K' = Just 20
+iban_decimal_value 'k' = Just 20
+iban_decimal_value 'L' = Just 21
+iban_decimal_value 'l' = Just 21
+iban_decimal_value 'M' = Just 22
+iban_decimal_value 'm' = Just 22
+iban_decimal_value 'N' = Just 23
+iban_decimal_value 'n' = Just 23
+iban_decimal_value 'O' = Just 24
+iban_decimal_value 'o' = Just 24
+iban_decimal_value 'P' = Just 25
+iban_decimal_value 'p' = Just 25
+iban_decimal_value 'Q' = Just 26
+iban_decimal_value 'q' = Just 26
+iban_decimal_value 'R' = Just 27
+iban_decimal_value 'r' = Just 27
+iban_decimal_value 'S' = Just 28
+iban_decimal_value 's' = Just 28
+iban_decimal_value 'T' = Just 29
+iban_decimal_value 't' = Just 29
+iban_decimal_value 'U' = Just 30
+iban_decimal_value 'u' = Just 30
+iban_decimal_value 'V' = Just 31
+iban_decimal_value 'v' = Just 31
+iban_decimal_value 'W' = Just 32
+iban_decimal_value 'w' = Just 32
+iban_decimal_value 'X' = Just 33
+iban_decimal_value 'x' = Just 33
+iban_decimal_value 'Y' = Just 34
+iban_decimal_value 'y' = Just 34
+iban_decimal_value 'Z' = Just 35
+iban_decimal_value 'z' = Just 35
+iban_decimal_value _ = Nothing
+
+iban_remainder : ℕ → List Char → Maybe ℕ
+iban_remainder remainder [] = Just remainder
+iban_remainder remainder (character :: remaining) =
+  case iban_decimal_value character of
+    Nothing => Nothing
+    Just value =>
+      let multiplier = if value < 10 then 10 else 100
+          next = mod (remainder * multiplier + value) 97
+      in iban_remainder next remaining
+
+iban_checksum_valid : List Char → Bool
+iban_checksum_valid (a :: b :: c :: d :: remaining) =
+  case iban_remainder 0 (remaining ++ [a, b, c, d]) of
+    Just 1 => True
+    _ => False
+iban_checksum_valid _ = False
+
+public export
+iban_text : Iban → String
+iban_text iban = iban.iban_value
+
+public export
+parse_iban : String → Either String Iban
+parse_iban text =
+  let characters = unpack text in
+    if not (iban_shape characters)
+      then Left "IBAN must contain two uppercase country letters, two check digits, and an alphanumeric BBAN"
+      else case registered_iban_length characters of
+        Nothing => Left "IBAN country code is not in the supported SWIFT registry"
+        Just expected =>
+          if not (length characters == expected)
+            then Left "IBAN length does not match its registered country format"
+            else if iban_checksum_valid characters
+              then Right (MkIban text)
+              else Left "IBAN checksum is invalid"
+
 public export
 iban_account : String → Either String AccountIdentification
 iban_account text = do
-  account <- parse_account text
-  pure (IbanAccount account)
+  iban <- parse_iban text
+  pure (IbanAccount iban)
 
 public export
 other_account : String → Either String AccountIdentification
@@ -101,5 +323,5 @@ other_account text = do
 
 public export
 account_identification_text : AccountIdentification → String
-account_identification_text (IbanAccount account) = account_text account
+account_identification_text (IbanAccount iban) = iban_text iban
 account_identification_text (OtherAccount account) = account_text account
