@@ -1,0 +1,153 @@
+module Mt.Parse
+
+import Mt.Types
+
+%default total
+
+strip_prefix : List Char → List Char → Maybe (List Char)
+strip_prefix [] input = Just input
+strip_prefix _ [] = Nothing
+strip_prefix (expected :: remaining_prefix) (actual :: input) =
+  if expected == actual
+    then strip_prefix remaining_prefix input
+    else Nothing
+
+take_balanced : ℕ → List Char → Either String (List Char, List Char)
+take_balanced _ [] = Left "unterminated FIN block"
+take_balanced depth ('{' :: rest) =
+  case take_balanced (depth + 1) rest of
+    Left problem => Left problem
+    Right (inside, remaining) => Right ('{' :: inside, remaining)
+take_balanced Z ('}' :: rest) = Left "unexpected FIN block terminator"
+take_balanced (S Z) ('}' :: rest) = Right ([], rest)
+take_balanced (S (S depth)) ('}' :: rest) =
+  case take_balanced (S depth) rest of
+    Left problem => Left problem
+    Right (inside, remaining) => Right ('}' :: inside, remaining)
+take_balanced depth (character :: rest) =
+  case take_balanced depth rest of
+    Left problem => Left problem
+    Right (inside, remaining) => Right (character :: inside, remaining)
+
+consume_block : String → String → List Char → Either String (String, List Char)
+consume_block block_name opening input =
+  case strip_prefix (unpack opening) input of
+    Nothing => Left ("expected FIN block " ++ block_name)
+    Just body =>
+      case take_balanced 1 body of
+        Left problem => Left problem
+        Right (content, remaining) => Right (pack content, remaining)
+
+consume_optional_block : String → List Char → Either String (Maybe String, List Char)
+consume_optional_block opening input =
+  case strip_prefix (unpack opening) input of
+    Nothing => Right (Nothing, input)
+    Just body =>
+      case take_balanced 1 body of
+        Left problem => Left problem
+        Right (content, remaining) => Right (Just (pack content), remaining)
+
+split_crlf_acc : List Char → List Char → List (List Char)
+split_crlf_acc current [] = [reverse current]
+split_crlf_acc current ('\r' :: '\n' :: rest) =
+  reverse current :: split_crlf_acc [] rest
+split_crlf_acc current (character :: rest) =
+  split_crlf_acc (character :: current) rest
+
+split_crlf : List Char → List (List Char)
+split_crlf = split_crlf_acc []
+
+drop_initial_empty_line : List (List Char) → List (List Char)
+drop_initial_empty_line ([] :: rest) = rest
+drop_initial_empty_line lines = lines
+
+text_lines : List (List Char) → Either String (List (List Char))
+text_lines [] = Left "FIN block 4 is missing its - terminator"
+text_lines (line :: rest) =
+  if pack line == "-"
+    then case rest of
+      [] => Right []
+      _ => Left "FIN block 4 contains text after its - terminator"
+    else case text_lines rest of
+      Left problem => Left problem
+      Right remaining => Right (line :: remaining)
+
+split_tag : List Char → Maybe (List Char, List Char)
+split_tag [] = Nothing
+split_tag (':' :: rest) = Just ([], rest)
+split_tag (character :: rest) =
+  case split_tag rest of
+    Nothing => Nothing
+    Just (tag, value) => Just (character :: tag, value)
+
+parse_field_line : List Char → Maybe MtField
+parse_field_line (':' :: rest) =
+  case split_tag rest of
+    Nothing => Nothing
+    Just (tag, value) => Just (MkMtField (pack tag) (pack value))
+parse_field_line _ = Nothing
+
+extend_field : MtField → List Char → MtField
+extend_field field continuation =
+  MkMtField
+    field.field_tag
+    (field.field_value ++ "\r\n" ++ pack continuation)
+
+finish_fields : List MtField → Maybe MtField → Either String (List MtField)
+finish_fields completed Nothing = Right (reverse completed)
+finish_fields completed (Just current) = Right (reverse (current :: completed))
+
+parse_field_lines :
+  List MtField →
+  Maybe MtField →
+  List (List Char) →
+  Either String (List MtField)
+parse_field_lines completed current [] = finish_fields completed current
+parse_field_lines completed current (line :: rest) =
+  case parse_field_line line of
+    Just next =>
+      case current of
+        Nothing => parse_field_lines completed (Just next) rest
+        Just previous => parse_field_lines (previous :: completed) (Just next) rest
+    Nothing =>
+      case current of
+        Nothing => Left "FIN block 4 begins with a continuation line"
+        Just previous =>
+          parse_field_lines completed (Just (extend_field previous line)) rest
+
+parse_block4_fields : String → Either String (List MtField)
+parse_block4_fields content =
+  case text_lines (drop_initial_empty_line (split_crlf (unpack content))) of
+    Left problem => Left problem
+    Right lines => parse_field_lines [] Nothing lines
+
+terminal_whitespace : List Char → Bool
+terminal_whitespace [] = True
+terminal_whitespace ('\r' :: rest) = terminal_whitespace rest
+terminal_whitespace ('\n' :: rest) = terminal_whitespace rest
+terminal_whitespace _ = False
+
+public export
+parse_fin : String → Either String SwiftEnvelope
+parse_fin text =
+  case consume_block "1" "{1:" (unpack text) of
+    Left problem => Left problem
+    Right (block1, after1) =>
+      case consume_block "2" "{2:" after1 of
+        Left problem => Left problem
+        Right (block2, after2) =>
+          case consume_optional_block "{3:" after2 of
+            Left problem => Left problem
+            Right (block3, after3) =>
+              case consume_block "4" "{4:" after3 of
+                Left problem => Left problem
+                Right (block4, after4) =>
+                  case parse_block4_fields block4 of
+                    Left problem => Left problem
+                    Right fields =>
+                      case consume_optional_block "{5:" after4 of
+                        Left problem => Left problem
+                        Right (block5, after5) =>
+                          if terminal_whitespace after5
+                            then Right (MkSwiftEnvelope block1 block2 block3 fields block5)
+                            else Left "unexpected text after FIN message"

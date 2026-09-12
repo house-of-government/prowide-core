@@ -1,0 +1,94 @@
+module Mt.Types
+
+import PaymentIdentifiers
+
+%default total
+
+public export
+record MtField where
+  constructor MkMtField
+  field_tag : String
+  field_value : String
+
+public export
+record SwiftEnvelope where
+  constructor MkSwiftEnvelope
+  envelope_basic_header : String
+  envelope_application_header : String
+  envelope_user_header : Maybe String
+  envelope_text : List MtField
+  envelope_trailer : Maybe String
+
+public export
+record ValueDateCurrencyAmount where
+  constructor MkValueDateCurrencyAmount
+  value_date : String
+  currency_code : String
+  amount_text : String
+
+public export
+record BicParty where
+  constructor MkBicParty
+  account : Maybe AccountIdentification
+  bic : Bic
+
+public export
+data OrderingCustomer
+  = OrderingCustomerA BicParty
+  | OrderingCustomerF String
+  | OrderingCustomerK String
+
+public export
+data BeneficiaryCustomer
+  = BeneficiaryCustomerA BicParty
+  | BeneficiaryCustomerF String
+  | BeneficiaryCustomerNoOption String
+
+public export
+record MT103 where
+  constructor MkMT103
+  mt103_basic_header : String
+  mt103_application_header : String
+  transaction_reference : String
+  bank_operation_code : String
+  value_date_currency_amount : ValueDateCurrencyAmount
+  ordering_customer : OrderingCustomer
+  beneficiary_customer : BeneficiaryCustomer
+  details_of_charges : String
+
+public export
+value_date_currency_amount_text : ValueDateCurrencyAmount → String
+value_date_currency_amount_text value =
+  value.value_date ++ value.currency_code ++ value.amount_text
+
+bic_party_text : BicParty → String
+bic_party_text party =
+  case party.account of
+    Nothing => bic_text party.bic
+    Just account => "/" ++ account_identification_text account ++ "\r\n" ++ bic_text party.bic
+
+ordering_customer_field : OrderingCustomer → MtField
+ordering_customer_field (OrderingCustomerA party) = MkMtField "50A" (bic_party_text party)
+ordering_customer_field (OrderingCustomerF value) = MkMtField "50F" value
+ordering_customer_field (OrderingCustomerK value) = MkMtField "50K" value
+
+beneficiary_customer_field : BeneficiaryCustomer → MtField
+beneficiary_customer_field (BeneficiaryCustomerA party) = MkMtField "59A" (bic_party_text party)
+beneficiary_customer_field (BeneficiaryCustomerF value) = MkMtField "59F" value
+beneficiary_customer_field (BeneficiaryCustomerNoOption value) = MkMtField "59" value
+
+public export
+mt103_envelope : MT103 → SwiftEnvelope
+mt103_envelope message =
+  MkSwiftEnvelope
+    message.mt103_basic_header
+    message.mt103_application_header
+    Nothing
+    [ MkMtField "20" message.transaction_reference
+    , MkMtField "23B" message.bank_operation_code
+    , MkMtField "32A" (value_date_currency_amount_text message.value_date_currency_amount)
+    , ordering_customer_field message.ordering_customer
+    , beneficiary_customer_field message.beneficiary_customer
+    , MkMtField "71A" message.details_of_charges
+    ]
+    Nothing
